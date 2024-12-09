@@ -3,14 +3,8 @@ import axios from 'axios';
 import querystring from 'querystring';
 import crypto from 'crypto';
 import cookieparser from 'cookie-parser';
-import { MusicBrainzApi } from 'musicbrainz-api';
+import { searchTrack } from './src/musicBrainzApi.js';
 import 'dotenv/config';
-
-const mbApi = new MusicBrainzApi({
-    appName: 'Spotify Playlist Manager',
-    appVersion: '0.1.0',
-    appContactInfo: 'gheorgheandrei13@gmail.com',
-});
 
 const app = express();
 const port = 3000;
@@ -108,18 +102,8 @@ app.get('/playlist/:id', function (req, res) {
         });
 
         for (const track of tracks) {
-            mbApi.search('recording', {
-                query: `${track.release} AND artist:${track.artist}`,
-                limit: 1,
-                offset: 0
-            }).then((response) => {
-                if (response.error) {
-                    console.log(response.error);
-                    return;
-                } else {
-                    console.log(`${track.release} - ${track.artist}`);
-                    console.log(response.recordings[0].id);
-                }
+            searchTrack(track).then((response) => {
+                console.log(response);
             });
         }
 
