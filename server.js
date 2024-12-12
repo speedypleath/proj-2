@@ -3,7 +3,8 @@ import axios from 'axios';
 import querystring from 'querystring';
 import crypto from 'crypto';
 import cookieparser from 'cookie-parser';
-import { searchTrack } from './src/musicBrainzApi.js';
+import fs from 'fs';
+import { searchTrack, getTrackData } from './src/musicBrainzApi.js';
 import 'dotenv/config';
 
 const app = express();
@@ -12,7 +13,7 @@ app.use(express.json())
     .use(cookieparser())
     .use(express.static('public'));
 
-app.get('/login', function (_, res) {
+app.get('/login', (_, res) => {
     const state = crypto.randomBytes(16).toString('hex');
     const scope = 'user-read-private user-read-email playlist-read-private playlist-read-collaborative';
 
@@ -26,7 +27,7 @@ app.get('/login', function (_, res) {
         }));
 });
 
-app.get('/callback', function (req, res) {
+app.get('/callback', (req, res) => {
     const code = req.query.code || null;
     const state = req.query.state || null;
 
@@ -55,7 +56,7 @@ app.get('/callback', function (req, res) {
     }
 });
 
-app.get('/refresh_token', function (req, res) {
+app.get('/refresh_token', (req, res) => {
     const refresh_token = req.query.refresh_token;
     axios.post('https://accounts.spotify.com/api/token', {
         refresh_token: refresh_token,
@@ -74,26 +75,27 @@ app.get('/refresh_token', function (req, res) {
     });
 });
 
-app.get('/playlists', function (req, res) {
+app.get('/playlists', (req, res) => {
     const access_token = req.cookies.access_token;
     axios.get('https://api.spotify.com/v1/me/playlists', {
         headers: {
             'Authorization': 'Bearer ' + access_token
         }
     }).then((response) => {
+        console.log('playlists');
         res.json(response.data);
     }).catch((error) => {
         console.log(error);
     });
 });
 
-app.get('/playlist/:id', function (req, res) {
+app.get('/playlist/:id', (req, res) => {
     const access_token = req.cookies.access_token;
     axios.get(`https://api.spotify.com/v1/playlists/${req.params.id}/tracks`, {
         headers: {
             'Authorization': 'Bearer ' + access_token
         }
-    }).then((response) => {
+    }).then(async (response) => {
         const tracks = response.data.items.map((item) => {
             return {
                 release: item.track.name,
@@ -101,15 +103,22 @@ app.get('/playlist/:id', function (req, res) {
             };
         });
 
-        for (const track of tracks) {
-            searchTrack(track).then((response) => {
-                console.log(response);
-            });
-        }
+        const trackInfo = await Promise.all(tracks.map(async (track) => {
+            const id = await searchTrack(track);
+            return await getTrackData(id);
+        }));
 
-        res.json(response.data);
+        res.json(trackInfo);
     }).catch((error) => {
         console.log(error);
+    });
+});
+
+app.get('/test_data', (_, res) => {
+    const data = JSON.parse(fs.readFileSync('./data/test.json'));
+    console.log(data);
+    res.json({
+        data: data
     });
 });
 
